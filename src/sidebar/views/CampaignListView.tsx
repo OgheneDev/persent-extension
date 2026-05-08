@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Plus,
   BarChart3,
@@ -36,18 +36,35 @@ const STATUS_MAP: Record<string, { color: string; bg: string }> = {
   failed: { color: "#f87171", bg: "rgba(248, 113, 113, 0.1)" },
 };
 
+const LIMIT = 20;
+
 export default function CampaignListView({ onSelect, onNew }: Props) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    campaignsApi
-      .list()
-      .then((data) => setCampaigns(data as Campaign[]))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+  const fetchCampaigns = useCallback(async (cursor?: string) => {
+    cursor ? setLoadingMore(true) : setLoading(true);
+    setError("");
+
+    try {
+      const res = await campaignsApi.list({ limit: LIMIT, cursor });
+      setCampaigns((prev) => (cursor ? [...prev, ...res.data] : res.data));
+      setNextCursor(res.nextCursor);
+      setHasMore(res.hasMore);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      cursor ? setLoadingMore(false) : setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
 
   const globalCss = `
     .campaign-card {
@@ -101,61 +118,79 @@ export default function CampaignListView({ onSelect, onNew }: Props) {
           </button>
         </div>
       ) : (
-        <div style={styles.list}>
-          {campaigns.map((c) => {
-            const status = STATUS_MAP[c.status] || STATUS_MAP.draft;
-            const progress =
-              c.totalRecipients > 0
-                ? (c.sentCount / c.totalRecipients) * 100
-                : 0;
+        <>
+          <div style={styles.list}>
+            {campaigns.map((c) => {
+              const status = STATUS_MAP[c.status] || STATUS_MAP.draft;
+              const progress =
+                c.totalRecipients > 0
+                  ? (c.sentCount / c.totalRecipients) * 100
+                  : 0;
 
-            return (
-              <div
-                key={c._id}
-                className="campaign-card"
-                style={styles.card}
-                onClick={() => onSelect(c._id)}
-              >
-                <div style={styles.cardTop}>
-                  <span style={styles.name}>{c.name}</span>
-                  <span
-                    style={{
-                      ...styles.badge,
-                      color: status.color,
-                      background: status.bg,
-                    }}
-                  >
-                    {c.status}
-                  </span>
-                </div>
-
-                {/* Progress Bar */}
-                <div style={styles.progressTrack}>
-                  <div
-                    style={{
-                      ...styles.progressFill,
-                      width: `${progress}%`,
-                      background: status.color,
-                    }}
-                  />
-                </div>
-
-                <div style={styles.cardBottom}>
-                  <div style={styles.metaItem}>
-                    <Send size={12} />
-                    <span>
-                      {c.sentCount} / {c.totalRecipients}
+              return (
+                <div
+                  key={c._id}
+                  className="campaign-card"
+                  style={styles.card}
+                  onClick={() => onSelect(c._id)}
+                >
+                  <div style={styles.cardTop}>
+                    <span style={styles.name}>{c.name}</span>
+                    <span
+                      style={{
+                        ...styles.badge,
+                        color: status.color,
+                        background: status.bg,
+                      }}
+                    >
+                      {c.status}
                     </span>
                   </div>
-                  <div style={styles.metaItem}>
-                    <Calendar size={12} />
-                    <span>{new Date(c.createdAt).toLocaleDateString()}</span>
+
+                  <div style={styles.progressTrack}>
+                    <div
+                      style={{
+                        ...styles.progressFill,
+                        width: `${progress}%`,
+                        background: status.color,
+                      }}
+                    />
+                  </div>
+
+                  <div style={styles.cardBottom}>
+                    <div style={styles.metaItem}>
+                      <Send size={12} />
+                      <span>
+                        {c.sentCount} / {c.totalRecipients}
+                      </span>
+                    </div>
+                    <div style={styles.metaItem}>
+                      <Calendar size={12} />
+                      <span>{new Date(c.createdAt).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+
+          {hasMore && (
+            <button
+              style={styles.loadMoreBtn}
+              onClick={() => fetchCampaigns(nextCursor!)}
+              disabled={loadingMore}
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 size={14} className="spin" />
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <span>Load more</span>
+              )}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -218,7 +253,7 @@ const styles: Record<string, React.CSSProperties> = {
   badge: {
     fontSize: 10,
     fontWeight: 700,
-    textTransform: "uppercase",
+    textTransform: "uppercase" as const,
     padding: "4px 8px",
     borderRadius: 6,
     letterSpacing: "0.5px",
@@ -283,5 +318,22 @@ const styles: Record<string, React.CSSProperties> = {
     color: T.danger,
     fontSize: 12,
     marginBottom: 16,
+  },
+  loadMoreBtn: {
+    width: "100%",
+    marginTop: 16,
+    padding: "12px",
+    background: "rgba(255,255,255,0.04)",
+    border: `1px solid ${T.border}`,
+    borderRadius: 12,
+    color: T.textSecondary,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    fontFamily: "'Sora', sans-serif",
   },
 };

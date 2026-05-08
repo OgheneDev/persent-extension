@@ -1,4 +1,4 @@
-import { ApiResponseMessage } from "../types";
+import { ApiResponseMessage, Campaign } from "../types";
 
 async function request<T>(
   method: string,
@@ -27,17 +27,27 @@ async function request<T>(
 
 export const authApi = {
   register: (name: string, email: string, password: string) =>
-    request<{ token: string; user: unknown }>("POST", "/auth/register", {
+    request<{ accessToken: string; user: unknown }>("POST", "/auth/register", {
       name,
       email,
       password,
     }),
 
   login: (email: string, password: string) =>
-    request<{ token: string; user: unknown }>("POST", "/auth/login", {
+    request<{ accessToken: string; user: unknown }>("POST", "/auth/login", {
       email,
       password,
     }),
+
+  // Sends the refresh token in the body since httpOnly cookies
+  // don't work reliably in extension service workers
+  refresh: (refreshToken: string) =>
+    request<{ accessToken: string }>("POST", "/auth/refresh", {
+      refreshToken,
+    }),
+
+  logout: (refreshToken: string) =>
+    request<void>("POST", "/auth/logout", { refreshToken }),
 
   me: () => request<unknown>("GET", "/auth/me"),
 };
@@ -59,7 +69,16 @@ export const accountsApi = {
 // ─── Campaigns ────────────────────────────────────────────────────────────
 
 export const campaignsApi = {
-  list: () => request<unknown[]>("GET", "/campaigns"),
+  list: (params?: { limit?: number; cursor?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.cursor) query.set("cursor", params.cursor);
+    return request<{
+      data: Campaign[];
+      nextCursor: string | null;
+      hasMore: boolean;
+    }>("GET", `/campaigns?${query}`);
+  },
 
   get: (id: string) => request<unknown>("GET", `/campaigns/${id}`),
 

@@ -31,7 +31,11 @@ async function apiRequest(
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (!isFormData) headers["Content-Type"] = "application/json";
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  // If it's an auth route, use base URL without /api
+  const isAuthRoute = endpoint.startsWith("/auth/");
+  const baseUrl = isAuthRoute ? "http://localhost:5000" : API_BASE;
+
+  const res = await fetch(`${baseUrl}${endpoint}`, {
     method,
     headers,
     body: isFormData

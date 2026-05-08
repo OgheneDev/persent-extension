@@ -40,7 +40,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
     );
   }
 
-  if (!auth.token) {
+  if (!auth.user) {
     return <AuthView onLogin={login} onRegister={register} />;
   }
 
