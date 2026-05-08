@@ -29,7 +29,7 @@ const T = {
 };
 
 export default function Sidebar({ onClose }: SidebarProps) {
-  const { auth, loading, login, register, logout } = useAuth();
+  const { auth, loading, login, register, logout, getAccessToken } = useAuth();
   const [view, setView] = useState<SidebarView>({ name: "campaigns" });
 
   if (loading) {
@@ -110,10 +110,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
               setView({ name: "campaign-detail", campaignId: id })
             }
             onNew={() => setView({ name: "new-campaign" })}
+            getAccessToken={getAccessToken}
           />
         )}
         {view.name === "accounts" && (
-          <AccountsView onBack={() => setView({ name: "campaigns" })} />
+          <AccountsView
+            onBack={() => setView({ name: "campaigns" })}
+            getAccessToken={getAccessToken}
+          />
         )}
         {view.name === "new-campaign" && (
           <NewCampaignView
@@ -121,12 +125,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
             onCreated={(id) =>
               setView({ name: "campaign-detail", campaignId: id })
             }
+            getAccessToken={getAccessToken}
           />
         )}
         {view.name === "campaign-detail" && (
           <CampaignDetailView
             campaignId={view.campaignId}
             onBack={() => setView({ name: "campaigns" })}
+            getAccessToken={getAccessToken}
           />
         )}
       </main>

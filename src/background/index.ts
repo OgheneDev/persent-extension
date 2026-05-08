@@ -2,36 +2,21 @@ import { ExtensionMessage, ApiRequestMessage } from "../types";
 
 const API_BASE = "http://localhost:5000/api";
 
-// ─── Storage helpers ───────────────────────────────────────────────────────
-
-async function getToken(): Promise<string | null> {
-  const result = await chrome.storage.local.get("token");
-  return (result.token as string | undefined) ?? null;
-}
-
-async function setAuth(token: string, user: unknown): Promise<void> {
-  await chrome.storage.local.set({ token, user });
-}
-
 async function clearAuth(): Promise<void> {
-  await chrome.storage.local.remove(["token", "user"]);
+  await chrome.storage.local.remove(["refreshToken", "user"]);
 }
-
-// ─── API fetch (runs in background, bypasses CORS restriction) ─────────────
 
 async function apiRequest(
   method: string,
   endpoint: string,
   body?: unknown,
   isFormData = false,
+  accessToken?: string | null,
 ): Promise<{ ok: boolean; status: number; data: unknown }> {
-  const token = await getToken();
-
   const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
   if (!isFormData) headers["Content-Type"] = "application/json";
 
-  // If it's an auth route, use base URL without /api
   const isAuthRoute = endpoint.startsWith("/auth/");
   const baseUrl = isAuthRoute ? "http://localhost:5000" : API_BASE;
 
@@ -55,31 +40,10 @@ async function apiRequest(
   return { ok: res.ok, status: res.status, data };
 }
 
-// ─── Message listener ──────────────────────────────────────────────────────
-
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse) => {
     (async () => {
       switch (message.type) {
-        case "GET_AUTH": {
-          const result = await chrome.storage.local.get(["token", "user"]);
-          sendResponse({
-            token: result.token ?? null,
-            user: result.user ?? null,
-          });
-          break;
-        }
-
-        case "SET_AUTH": {
-          const { token, user } = message.payload as {
-            token: string;
-            user: unknown;
-          };
-          await setAuth(token, user);
-          sendResponse({ ok: true });
-          break;
-        }
-
         case "CLEAR_AUTH": {
           await clearAuth();
           sendResponse({ ok: true });
@@ -87,10 +51,16 @@ chrome.runtime.onMessage.addListener(
         }
 
         case "API_REQUEST": {
-          const { method, endpoint, body, isFormData } = (
+          const { method, endpoint, body, isFormData, accessToken } = (
             message as ApiRequestMessage
           ).payload;
-          const result = await apiRequest(method, endpoint, body, isFormData);
+          const result = await apiRequest(
+            method,
+            endpoint,
+            body,
+            isFormData,
+            accessToken,
+          );
           sendResponse({ type: "API_RESPONSE", payload: result });
           break;
         }

@@ -15,6 +15,7 @@ import { campaignsApi, recipientsApi } from "../../services/api";
 interface Props {
   campaignId: string;
   onBack: () => void;
+  getAccessToken: () => string | null;
 }
 
 type Tab = "overview" | "preview" | "recipients";
@@ -59,7 +60,11 @@ const css = `
   .action-btn:active:not(:disabled) { transform: translateY(0); }
 `;
 
-export default function CampaignDetailView({ campaignId, onBack }: Props) {
+export default function CampaignDetailView({
+  campaignId,
+  onBack,
+  getAccessToken,
+}: Props) {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stats, setStats] = useState<RecipientStats | null>(null);
   const [previews, setPreviews] = useState<CampaignPreview[]>([]);
@@ -72,9 +77,11 @@ export default function CampaignDetailView({ campaignId, onBack }: Props) {
 
   async function load() {
     try {
+      const token = getAccessToken();
+      if (!token) throw new Error("Not authenticated");
       const [c, s] = await Promise.all([
-        campaignsApi.get(campaignId),
-        recipientsApi.stats(campaignId),
+        campaignsApi.get(campaignId, token),
+        recipientsApi.stats(campaignId, token),
       ]);
       setCampaign(c as Campaign);
       setStats(s as RecipientStats);
@@ -95,7 +102,9 @@ export default function CampaignDetailView({ campaignId, onBack }: Props) {
     setUploading(true);
     setError("");
     try {
-      await campaignsApi.uploadRecipients(campaignId, file);
+      const token = getAccessToken();
+      if (!token) throw new Error("Not authenticated");
+      await campaignsApi.uploadRecipients(campaignId, file, token);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -108,7 +117,11 @@ export default function CampaignDetailView({ campaignId, onBack }: Props) {
     setTab("preview");
     if (previews.length > 0) return;
     try {
-      const data = (await campaignsApi.preview(campaignId)) as {
+      const token = getAccessToken();
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+      const data = (await campaignsApi.preview(campaignId, token)) as {
         previews: CampaignPreview[];
       };
       setPreviews(data.previews);
@@ -122,7 +135,11 @@ export default function CampaignDetailView({ campaignId, onBack }: Props) {
     setSending(true);
     setError("");
     try {
-      await campaignsApi.send(campaignId);
+      const token = getAccessToken();
+      if (!token) {
+        throw new Error("Not authenticated");
+      }
+      await campaignsApi.send(campaignId, token);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Send failed");

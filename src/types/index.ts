@@ -68,8 +68,6 @@ export interface RecipientStats {
 export type MessageType =
   | "API_REQUEST"
   | "API_RESPONSE"
-  | "GET_AUTH"
-  | "SET_AUTH"
   | "CLEAR_AUTH"
   | "TOGGLE_SIDEBAR"
   | "IDENTITY_AUTH"
@@ -88,6 +86,7 @@ export interface ApiRequestMessage extends ExtensionMessage {
     endpoint: string;
     body?: unknown;
     isFormData?: boolean;
+    accessToken: string;
   };
 }
 

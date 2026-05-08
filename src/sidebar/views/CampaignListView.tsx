@@ -13,6 +13,7 @@ import { campaignsApi } from "../../services/api";
 interface Props {
   onSelect: (id: string) => void;
   onNew: () => void;
+  getAccessToken: () => string | null;
 }
 
 const T = {
@@ -38,7 +39,11 @@ const STATUS_MAP: Record<string, { color: string; bg: string }> = {
 
 const LIMIT = 20;
 
-export default function CampaignListView({ onSelect, onNew }: Props) {
+export default function CampaignListView({
+  onSelect,
+  onNew,
+  getAccessToken,
+}: Props) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -46,21 +51,26 @@ export default function CampaignListView({ onSelect, onNew }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchCampaigns = useCallback(async (cursor?: string) => {
-    cursor ? setLoadingMore(true) : setLoading(true);
-    setError("");
+  const fetchCampaigns = useCallback(
+    async (cursor?: string) => {
+      cursor ? setLoadingMore(true) : setLoading(true);
+      setError("");
 
-    try {
-      const res = await campaignsApi.list({ limit: LIMIT, cursor });
-      setCampaigns((prev) => (cursor ? [...prev, ...res.data] : res.data));
-      setNextCursor(res.nextCursor);
-      setHasMore(res.hasMore);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      cursor ? setLoadingMore(false) : setLoading(false);
-    }
-  }, []);
+      try {
+        const token = getAccessToken();
+        if (!token) throw new Error("Not authenticated");
+        const res = await campaignsApi.list(token, { limit: LIMIT, cursor });
+        setCampaigns((prev) => (cursor ? [...prev, ...res.data] : res.data));
+        setNextCursor(res.nextCursor);
+        setHasMore(res.hasMore);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        cursor ? setLoadingMore(false) : setLoading(false);
+      }
+    },
+    [getAccessToken],
+  );
 
   useEffect(() => {
     fetchCampaigns();

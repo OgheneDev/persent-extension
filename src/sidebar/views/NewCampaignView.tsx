@@ -13,6 +13,7 @@ import { campaignsApi, accountsApi } from "../../services/api";
 interface Props {
   onBack: () => void;
   onCreated: (id: string) => void;
+  getAccessToken: () => string | null;
 }
 
 const T = {
@@ -140,7 +141,11 @@ const css = `
   .nc-tag:hover { background: rgba(16,185,129,0.2); }
 `;
 
-export default function NewCampaignView({ onBack, onCreated }: Props) {
+export default function NewCampaignView({
+  onBack,
+  onCreated,
+  getAccessToken,
+}: Props) {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [name, setName] = useState("");
   const [connectedAccountId, setConnectedAccountId] = useState("");
@@ -153,11 +158,19 @@ export default function NewCampaignView({ onBack, onCreated }: Props) {
   const isReady = name && subjectTemplate && bodyTemplate && connectedAccountId;
 
   useEffect(() => {
-    accountsApi.list().then((data) => {
-      const accs = data as ConnectedAccount[];
-      setAccounts(accs);
-      if (accs.length > 0) setConnectedAccountId(accs[0]._id);
-    });
+    async function loadAccounts() {
+      try {
+        const token = getAccessToken();
+        if (!token) return;
+        const data = await accountsApi.list(token);
+        const accs = data as ConnectedAccount[];
+        setAccounts(accs);
+        if (accs.length > 0) setConnectedAccountId(accs[0]._id);
+      } catch {
+        // silently fail — the warning banner already tells the user
+      }
+    }
+    loadAccounts();
   }, []);
 
   async function handleCreate() {
@@ -168,12 +181,17 @@ export default function NewCampaignView({ onBack, onCreated }: Props) {
     setError("");
     setLoading(true);
     try {
-      const campaign = await campaignsApi.create({
-        name,
-        subjectTemplate,
-        bodyTemplate,
-        connectedAccountId,
-      });
+      const token = getAccessToken();
+      if (!token) throw new Error("Not authenticated");
+      const campaign = await campaignsApi.create(
+        {
+          name,
+          subjectTemplate,
+          bodyTemplate,
+          connectedAccountId,
+        },
+        token,
+      );
       onCreated((campaign as Campaign)._id);
     } catch (err) {
       setError(

@@ -1,14 +1,15 @@
-import { ApiResponseMessage, Campaign } from "../types";
+import { ApiResponseMessage, Campaign, User } from "../types";
 
 async function request<T>(
   method: string,
   endpoint: string,
   body?: unknown,
   isFormData = false,
+  accessToken?: string | null,
 ): Promise<T> {
   const response: ApiResponseMessage = await chrome.runtime.sendMessage({
     type: "API_REQUEST",
-    payload: { method, endpoint, body, isFormData },
+    payload: { method, endpoint, body, isFormData, accessToken },
   });
 
   const { ok, status, data } = response.payload;
@@ -23,53 +24,64 @@ async function request<T>(
   return data as T;
 }
 
-// ─── Auth ──────────────────────────────────────────────────────────────────
+// ─── Auth (no token needed) ────────────────────────────────────────────────
 
 export const authApi = {
   register: (name: string, email: string, password: string) =>
-    request<{ accessToken: string; user: unknown }>("POST", "/auth/register", {
-      name,
-      email,
-      password,
-    }),
+    request<{ accessToken: string; refreshToken: string; user: unknown }>(
+      "POST",
+      "/auth/register",
+      { name, email, password },
+    ),
 
   login: (email: string, password: string) =>
-    request<{ accessToken: string; user: unknown }>("POST", "/auth/login", {
-      email,
-      password,
-    }),
+    request<{ accessToken: string; refreshToken: string; user: unknown }>(
+      "POST",
+      "/auth/login",
+      { email, password },
+    ),
 
-  // Sends the refresh token in the body since httpOnly cookies
-  // don't work reliably in extension service workers
   refresh: (refreshToken: string) =>
-    request<{ accessToken: string }>("POST", "/auth/refresh", {
-      refreshToken,
-    }),
+    request<{ accessToken: string }>("POST", "/auth/refresh", { refreshToken }),
 
   logout: (refreshToken: string) =>
     request<void>("POST", "/auth/logout", { refreshToken }),
 
-  me: () => request<unknown>("GET", "/auth/me"),
+  me: (accessToken: string) =>
+    request<User>("GET", "/auth/me", undefined, false, accessToken),
 };
 
 // ─── Accounts ─────────────────────────────────────────────────────────────
 
 export const accountsApi = {
-  list: () => request<unknown[]>("GET", "/accounts"),
-  delete: (id: string) => request<unknown>("DELETE", `/accounts/${id}`),
-  saveToken: (payload: {
-    provider: string;
-    email: string;
-    accessToken: string;
-    refreshToken: string;
-    expiresAt: string;
-  }) => request<unknown>("POST", "/accounts/token", payload),
+  list: (accessToken: string) =>
+    request<unknown[]>("GET", "/accounts", undefined, false, accessToken),
+
+  delete: (id: string, accessToken: string) =>
+    request<unknown>(
+      "DELETE",
+      `/accounts/${id}`,
+      undefined,
+      false,
+      accessToken,
+    ),
+
+  saveToken: (
+    payload: {
+      provider: string;
+      email: string;
+      accessToken: string;
+      refreshToken: string;
+      expiresAt: string;
+    },
+    accessToken: string,
+  ) => request<unknown>("POST", "/accounts/token", payload, false, accessToken),
 };
 
 // ─── Campaigns ────────────────────────────────────────────────────────────
 
 export const campaignsApi = {
-  list: (params?: { limit?: number; cursor?: string }) => {
+  list: (accessToken: string, params?: { limit?: number; cursor?: string }) => {
     const query = new URLSearchParams();
     if (params?.limit) query.set("limit", String(params.limit));
     if (params?.cursor) query.set("cursor", params.cursor);
@@ -77,17 +89,21 @@ export const campaignsApi = {
       data: Campaign[];
       nextCursor: string | null;
       hasMore: boolean;
-    }>("GET", `/campaigns?${query}`);
+    }>("GET", `/campaigns?${query}`, undefined, false, accessToken);
   },
 
-  get: (id: string) => request<unknown>("GET", `/campaigns/${id}`),
+  get: (id: string, accessToken: string) =>
+    request<unknown>("GET", `/campaigns/${id}`, undefined, false, accessToken),
 
-  create: (payload: {
-    name: string;
-    subjectTemplate: string;
-    bodyTemplate: string;
-    connectedAccountId: string;
-  }) => request<unknown>("POST", "/campaigns", payload),
+  create: (
+    payload: {
+      name: string;
+      subjectTemplate: string;
+      bodyTemplate: string;
+      connectedAccountId: string;
+    },
+    accessToken: string,
+  ) => request<unknown>("POST", "/campaigns", payload, false, accessToken),
 
   update: (
     id: string,
@@ -96,11 +112,20 @@ export const campaignsApi = {
       subjectTemplate: string;
       bodyTemplate: string;
     }>,
-  ) => request<unknown>("PATCH", `/campaigns/${id}`, payload),
+    accessToken: string,
+  ) =>
+    request<unknown>("PATCH", `/campaigns/${id}`, payload, false, accessToken),
 
-  delete: (id: string) => request<unknown>("DELETE", `/campaigns/${id}`),
+  delete: (id: string, accessToken: string) =>
+    request<unknown>(
+      "DELETE",
+      `/campaigns/${id}`,
+      undefined,
+      false,
+      accessToken,
+    ),
 
-  uploadRecipients: async (id: string, file: File) => {
+  uploadRecipients: async (id: string, file: File, accessToken: string) => {
     const base64 = await new Promise<string>((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve((reader.result as string).split(",")[1]);
@@ -111,21 +136,48 @@ export const campaignsApi = {
       "POST",
       `/campaigns/${id}/recipients`,
       { base64, filename: file.name },
-      false, // not formData
+      false,
+      accessToken,
     );
   },
 
-  preview: (id: string) => request<unknown>("GET", `/campaigns/${id}/preview`),
+  preview: (id: string, accessToken: string) =>
+    request<unknown>(
+      "GET",
+      `/campaigns/${id}/preview`,
+      undefined,
+      false,
+      accessToken,
+    ),
 
-  send: (id: string) => request<unknown>("POST", `/campaigns/${id}/send`),
+  send: (id: string, accessToken: string) =>
+    request<unknown>(
+      "POST",
+      `/campaigns/${id}/send`,
+      undefined,
+      false,
+      accessToken,
+    ),
 };
 
 // ─── Recipients ───────────────────────────────────────────────────────────
 
 export const recipientsApi = {
-  list: (campaignId: string, page = 1) =>
-    request<unknown>("GET", `/campaigns/${campaignId}/recipients?page=${page}`),
+  list: (campaignId: string, accessToken: string, page = 1) =>
+    request<unknown>(
+      "GET",
+      `/campaigns/${campaignId}/recipients?page=${page}`,
+      undefined,
+      false,
+      accessToken,
+    ),
 
-  stats: (campaignId: string) =>
-    request<unknown>("GET", `/campaigns/${campaignId}/recipients/stats`),
+  stats: (campaignId: string, accessToken: string) =>
+    request<unknown>(
+      "GET",
+      `/campaigns/${campaignId}/recipients/stats`,
+      undefined,
+      false,
+      accessToken,
+    ),
 };

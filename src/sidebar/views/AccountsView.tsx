@@ -5,6 +5,7 @@ import { accountsApi } from "../../services/api";
 
 interface Props {
   onBack: () => void;
+  getAccessToken: () => string | null;
 }
 
 const T = {
@@ -107,7 +108,7 @@ const css = `
   }
 `;
 
-export default function AccountsView({ onBack }: Props) {
+export default function AccountsView({ onBack, getAccessToken }: Props) {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(
@@ -118,7 +119,9 @@ export default function AccountsView({ onBack }: Props) {
 
   async function load() {
     try {
-      const data = await accountsApi.list();
+      const token = getAccessToken();
+      if (!token) throw new Error("Not authenticated");
+      const data = await accountsApi.list(token);
       setAccounts(data as ConnectedAccount[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load accounts");
@@ -135,23 +138,27 @@ export default function AccountsView({ onBack }: Props) {
     setConnecting(provider);
     setError("");
     try {
-      const authUrl = await buildAuthUrl(provider);
+      const token = getAccessToken();
+      if (!token) throw new Error("Not authenticated");
+
+      const authUrl = await buildAuthUrl(provider, token);
       const redirectUrl = await launchWebAuthFlow(authUrl);
       const url = new URL(redirectUrl);
       const code = url.searchParams.get("code");
       if (!code) throw new Error("No auth code returned");
 
-      // Get the token data from exchange
-      const tokenData = await exchangeCode(provider, code);
+      const tokenData = await exchangeCode(provider, code, token);
 
-      // Save the token data
-      await accountsApi.saveToken({
-        provider: provider,
-        email: tokenData.email,
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        expiresAt: new Date(tokenData.expiry_date).toISOString(),
-      });
+      await accountsApi.saveToken(
+        {
+          provider,
+          email: tokenData.email,
+          accessToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token,
+          expiresAt: new Date(tokenData.expiry_date).toISOString(),
+        },
+        token,
+      );
 
       await load();
     } catch (err) {
@@ -166,7 +173,9 @@ export default function AccountsView({ onBack }: Props) {
   async function disconnect(id: string) {
     setRemoving(id);
     try {
-      await accountsApi.delete(id);
+      const token = getAccessToken();
+      if (!token) throw new Error("Not authenticated");
+      await accountsApi.delete(id, token);
       setAccounts((prev) => prev.filter((a) => a._id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to disconnect");
@@ -588,12 +597,15 @@ const OutlookIcon = () => (
 
 // ─── OAuth helpers (unchanged logic) ───────────────────────────────────────────
 
-async function buildAuthUrl(provider: "gmail" | "outlook"): Promise<string> {
+async function buildAuthUrl(
+  provider: "gmail" | "outlook",
+  accessToken: string,
+): Promise<string> {
   const endpoint =
     provider === "gmail" ? "/accounts/google/url" : "/accounts/microsoft/url";
   const r = await chrome.runtime.sendMessage({
     type: "API_REQUEST",
-    payload: { method: "GET", endpoint },
+    payload: { method: "GET", endpoint, accessToken },
   });
   if (!r?.payload?.ok)
     throw new Error(
@@ -614,6 +626,7 @@ async function launchWebAuthFlow(authUrl: string): Promise<string> {
 async function exchangeCode(
   provider: "gmail" | "outlook",
   code: string,
+  accessToken: string,
 ): Promise<{
   email: string;
   access_token: string;
@@ -626,7 +639,7 @@ async function exchangeCode(
       : "/accounts/microsoft/exchange";
   const r = await chrome.runtime.sendMessage({
     type: "API_REQUEST",
-    payload: { method: "POST", endpoint, body: { code } },
+    payload: { method: "POST", endpoint, body: { code }, accessToken },
   });
   if (!r?.payload?.ok)
     throw new Error(
