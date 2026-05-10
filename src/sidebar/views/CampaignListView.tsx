@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import {
-  Plus,
+  CirclePlus,
   BarChart3,
   Calendar,
   Send,
@@ -103,7 +103,7 @@ export default function CampaignListView({
       <div style={styles.topRow}>
         <h3 style={styles.heading}>Campaigns</h3>
         <button style={styles.newBtn} onClick={onNew}>
-          <Plus size={16} />
+          <CirclePlus size={16} />
           <span>New</span>
         </button>
       </div>
