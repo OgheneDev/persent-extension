@@ -15,16 +15,19 @@ async function request<T>(
   const { ok, status, data } = response.payload;
 
   if (!ok) {
-    // Extract the actual error message from the response data
-    const errorData = data as { message?: string; code?: string };
+    const errorData = data as {
+      error?: { message?: string; code?: string };
+      message?: string;
+      code?: string;
+    };
     const message =
-      errorData?.message || `Request failed with status ${status}`;
+      errorData?.error?.message ||
+      errorData?.message ||
+      `Request failed with status ${status}`;
 
-    // Create error with the backend message
     const error = new Error(message);
-    // Attach additional metadata if needed
     (error as any).statusCode = status;
-    (error as any).code = errorData?.code;
+    (error as any).code = errorData?.error?.code ?? errorData?.code;
 
     throw error;
   }
