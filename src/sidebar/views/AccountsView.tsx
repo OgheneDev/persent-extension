@@ -3,6 +3,8 @@ import { ChevronLeft, Mail, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { ConnectedAccount } from "../../types";
 import { accountsApi } from "../../services/api";
 import { GoogleIcon, GoogleIconLarge, OutlookIcon } from "../../assets";
+import { useAuth } from "../../hooks/useAuth";
+import { planType } from "../../types";
 
 interface Props {
   onBack: () => void;
@@ -109,6 +111,13 @@ const css = `
   }
 `;
 
+const PLAN_ACCOUNT_LIMITS: Record<planType, number> = {
+  free: 1,
+  pro: 1,
+  growth: 10,
+  founder: 5,
+};
+
 export default function AccountsView({ onBack, getAccessToken }: Props) {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,6 +126,9 @@ export default function AccountsView({ onBack, getAccessToken }: Props) {
   );
   const [error, setError] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
+  const { auth } = useAuth();
+  const planLimit = PLAN_ACCOUNT_LIMITS[auth.user?.plan ?? "free"];
+  const canAddAccount = !loading && accounts.length < planLimit;
 
   async function load() {
     try {
@@ -287,89 +299,165 @@ export default function AccountsView({ onBack, getAccessToken }: Props) {
           </div>
         )}
 
-        <label
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "1.2px",
-            color: "#475569",
-            display: "block",
-            marginBottom: 12,
-          }}
-        >
-          Add Provider
-        </label>
+        {!loading && (
+          <>
+            {canAddAccount ? (
+              <>
+                <label
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "1.2px",
+                    color: "#475569",
+                    display: "block",
+                    marginBottom: 12,
+                  }}
+                >
+                  Add Provider
+                </label>
 
-        <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
-        >
-          {/* Gmail */}
-          <button
-            className="acc-connect-btn"
-            onClick={() => handleConnect("gmail")}
-            disabled={connecting !== null}
-            style={{
-              background: T.surface,
-              border: `1px solid ${connecting === "gmail" ? "rgba(234,67,53,0.4)" : T.border}`,
-              borderRadius: 14,
-              padding: "16px 12px",
-              color: T.textPrimary,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 8,
-              cursor: "pointer",
-              fontFamily: "'Sora', sans-serif",
-            }}
-          >
-            {connecting === "gmail" ? (
-              <Loader2 size={18} className="spin" color={T.gmail} />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                  }}
+                >
+                  {/* Gmail */}
+                  <button
+                    className="acc-connect-btn"
+                    onClick={() => handleConnect("gmail")}
+                    disabled={connecting !== null}
+                    style={{
+                      background: T.surface,
+                      border: `1px solid ${connecting === "gmail" ? "rgba(234,67,53,0.4)" : T.border}`,
+                      borderRadius: 14,
+                      padding: "16px 12px",
+                      color: T.textPrimary,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 8,
+                      cursor: "pointer",
+                      fontFamily: "'Sora', sans-serif",
+                    }}
+                  >
+                    {connecting === "gmail" ? (
+                      <Loader2 size={18} className="spin" color={T.gmail} />
+                    ) : (
+                      <GoogleIcon />
+                    )}
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>Gmail</div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: T.textMuted,
+                          marginTop: 1,
+                        }}
+                      >
+                        Google Workspace
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Outlook */}
+                  <button
+                    className="acc-connect-btn"
+                    onClick={() => handleConnect("outlook")}
+                    disabled={connecting !== null}
+                    style={{
+                      background: T.surface,
+                      border: `1px solid ${connecting === "outlook" ? "rgba(0,120,212,0.4)" : T.border}`,
+                      borderRadius: 14,
+                      padding: "16px 12px",
+                      color: T.textPrimary,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 8,
+                      cursor: "pointer",
+                      fontFamily: "'Sora', sans-serif",
+                    }}
+                  >
+                    {connecting === "outlook" ? (
+                      <Loader2 size={18} className="spin" color={T.outlook} />
+                    ) : (
+                      <OutlookIcon />
+                    )}
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>
+                        Outlook
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: T.textMuted,
+                          marginTop: 1,
+                        }}
+                      >
+                        Microsoft 365
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
             ) : (
-              <GoogleIcon />
-            )}
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Gmail</div>
-              <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>
-                Google Workspace
+              <div
+                style={{
+                  background: "rgba(16,185,129,0.04)",
+                  border: `1px solid rgba(16,185,129,0.12)`,
+                  borderRadius: 12,
+                  padding: "12px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <AlertCircle
+                  size={14}
+                  strokeWidth={2.5}
+                  color="#10b981"
+                  style={{ flexShrink: 0 }}
+                />
+                <div>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#10b981",
+                    }}
+                  >
+                    Account limit reached
+                  </p>
+                  <p
+                    style={{
+                      margin: "2px 0 0",
+                      fontSize: 11,
+                      color: T.textMuted,
+                    }}
+                  >
+                    Your{" "}
+                    <span
+                      style={{
+                        color: T.textSecondary,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {auth.user?.plan}
+                    </span>{" "}
+                    plan supports up to {planLimit} connected account
+                    {planLimit === 1 ? "" : "s"}.
+                  </p>
+                </div>
               </div>
-            </div>
-          </button>
-
-          {/* Outlook */}
-          <button
-            className="acc-connect-btn"
-            onClick={() => handleConnect("outlook")}
-            disabled={connecting !== null}
-            style={{
-              background: T.surface,
-              border: `1px solid ${connecting === "outlook" ? "rgba(0,120,212,0.4)" : T.border}`,
-              borderRadius: 14,
-              padding: "16px 12px",
-              color: T.textPrimary,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 8,
-              cursor: "pointer",
-              fontFamily: "'Sora', sans-serif",
-            }}
-          >
-            {connecting === "outlook" ? (
-              <Loader2 size={18} className="spin" color={T.outlook} />
-            ) : (
-              <OutlookIcon />
             )}
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Outlook</div>
-              <div style={{ fontSize: 10, color: T.textMuted, marginTop: 1 }}>
-                Microsoft 365
-              </div>
-            </div>
-          </button>
-        </div>
 
-        <div className="acc-divider" />
+            <div className="acc-divider" />
+          </>
+        )}
 
         <div
           style={{

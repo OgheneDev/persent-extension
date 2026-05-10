@@ -145,7 +145,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </div>
           <div style={styles.userText}>
             <span style={styles.userName}>{auth.user?.name || "User"}</span>
-            <span style={styles.userRole}>Pro Account</span>
+            <span style={styles.userRole}>
+              {auth.user?.plan || "Pro Account"}
+            </span>
           </div>
         </div>
         <button style={styles.logoutBtn} onClick={logout}>

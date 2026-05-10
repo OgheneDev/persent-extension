@@ -1,9 +1,12 @@
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
+export type planType = "free" | "pro" | "growth" | "founder";
+
 export interface User {
   id: string;
   name: string;
   email: string;
+  plan: planType;
 }
 
 export interface AuthState {
