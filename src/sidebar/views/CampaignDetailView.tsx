@@ -10,9 +10,11 @@ import {
   AlertCircle,
   Clock,
   ShieldCheck,
+  Copy,
 } from "lucide-react";
 import { Campaign, CampaignPreview, RecipientStats } from "../../types";
 import { campaignsApi, recipientsApi } from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
 
 interface Props {
   campaignId: string;
@@ -134,6 +136,9 @@ export default function CampaignDetailView({
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { auth } = useAuth();
+  const [cloning, setCloning] = useState(false);
+  const [cloneSuccess, setCloneSuccess] = useState("");
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -240,6 +245,27 @@ export default function CampaignDetailView({
     }
   }
 
+  async function handleClone() {
+    if (!confirm("Clone this campaign to all your connected accounts?")) return;
+    setCloning(true);
+    setCloneSuccess("");
+    setError("");
+    try {
+      const token = getAccessToken();
+      if (!token) throw new Error("Not authenticated");
+      const result = (await campaignsApi.clone(campaignId, token)) as {
+        cloned: number;
+      };
+      setCloneSuccess(
+        `Cloned to ${result.cloned} account${result.cloned !== 1 ? "s" : ""} — check your campaigns list.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Clone failed");
+    } finally {
+      setCloning(false);
+    }
+  }
+
   // ── Derived values ─────────────────────────────────────────────────────────
 
   const isActive = campaign ? ACTIVE_STATUSES.has(campaign.status) : false;
@@ -249,6 +275,8 @@ export default function CampaignDetailView({
   const spreadMinutes = estimateSpreadMinutes(total);
   const canSend =
     campaign && ["draft", "failed"].includes(campaign.status) && total > 0;
+  const canClone =
+    auth.user?.plan === "growth" || auth.user?.plan === "founder";
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -399,6 +427,31 @@ export default function CampaignDetailView({
                     </>
                   )}
                 </button>
+              )}
+
+              {canClone && campaign.status === "done" && (
+                <button
+                  className="action-btn"
+                  style={styles.cloneBtn}
+                  onClick={handleClone}
+                  disabled={cloning}
+                >
+                  {cloning ? (
+                    <>
+                      <Loader2 size={16} className="spin" />
+                      <span>Cloning...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={16} />
+                      <span>Clone to All Accounts</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {cloneSuccess && (
+                <div style={styles.successBox}>{cloneSuccess}</div>
               )}
             </div>
           </div>
@@ -821,4 +874,28 @@ const styles: Record<string, React.CSSProperties> = {
   previewMeta: { fontSize: 12, color: T.textSecondary },
   previewBody: { fontSize: 13, color: T.textPrimary, lineHeight: 1.6 },
   center: { display: "flex", justifyContent: "center", padding: "40px 0" },
+  cloneBtn: {
+    padding: "12px",
+    background: "transparent",
+    color: T.accent,
+    border: `1px solid ${T.accent}`,
+    borderRadius: 12,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    fontFamily: "'Sora', sans-serif",
+  },
+  successBox: {
+    padding: "12px 16px",
+    background: T.infoBg,
+    border: `1px solid ${T.infoBorder}`,
+    borderRadius: 12,
+    color: T.accent,
+    fontSize: 12,
+    fontWeight: 500,
+  },
 };

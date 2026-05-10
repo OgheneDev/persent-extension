@@ -169,6 +169,15 @@ export const campaignsApi = {
       false,
       accessToken,
     ),
+
+  clone: (id: string, accessToken: string) =>
+    request<unknown>(
+      "POST",
+      `/campaigns/${id}/clone`,
+      { allAccounts: true },
+      false,
+      accessToken,
+    ),
 };
 
 // ─── Recipients ───────────────────────────────────────────────────────────
