@@ -22,6 +22,7 @@ export function useAuth() {
         accessTokenRef.current = accessToken;
 
         const user = await authApi.me(accessToken); // ← pass token directly
+        console.log("me() raw response:", user); // check this in extension devtools
         setAuth({ user: user as User });
       } catch {
         await chrome.storage.local.remove("refreshToken");

@@ -3,7 +3,7 @@
 export type planType = "free" | "pro" | "growth" | "founder";
 
 export interface User {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   plan: planType;

@@ -17,6 +17,13 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+const formatPlan: Record<string, string> = {
+  free: "Free Plan",
+  pro: "Pro Account",
+  growth: "Growth Plan",
+  founder: "Founder",
+};
+
 const T = {
   bg: "#090e1a",
   surface: "#111827",
@@ -146,7 +153,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
           <div style={styles.userText}>
             <span style={styles.userName}>{auth.user?.name || "User"}</span>
             <span style={styles.userRole}>
-              {auth.user?.plan || "Pro Account"}
+              {formatPlan[auth.user?.plan ?? ""] ??
+                auth.user?.plan ??
+                "Free Plan"}
             </span>
           </div>
         </div>
